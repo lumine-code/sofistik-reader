@@ -20,6 +20,16 @@
             }
           }
         ],
+        [
+          "OS=='mac'",
+          {
+            # node-gyp disables exceptions on macOS through xcode_settings, which
+            # the cflags_cc! above cannot reach, and node-addon-api throws.
+            "xcode_settings": {
+              "GCC_ENABLE_CPP_EXCEPTIONS": "YES"
+            }
+          }
+        ],
         ["OS!='win'", {"defines": ["SOFISTIK_CDB_UNSUPPORTED_PLATFORM"]}]
       ]
     }
