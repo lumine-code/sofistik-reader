@@ -1,0 +1,19 @@
+node_modules/
+build/
+coverage/
+dist/
+out/
+*.log
+
+# Vendor material copied out of a local SOFiSTiK installation, and local notes.
+# Reference only, never shipped and never committed: SOFiSTiK's copyright.
+sofistik/
+.dev/
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

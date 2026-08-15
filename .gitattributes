@@ -1,0 +1,2 @@
+# Prettier checks against LF, so keep the working tree LF on every platform.
+* text=auto eol=lf
