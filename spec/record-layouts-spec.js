@@ -105,6 +105,24 @@ describe("recordLayoutsFor", () => {
     expect(table.key("RESULT").secondary).toBeNull();
   });
 
+  it("takes a stated key for a record SOFiSTiK groups under no union", () => {
+    // The headers carry a struct for every record but a union only for those
+    // the interface groups, so a record with no union has no key to look up and
+    // states one instead. Its own kind is then the only one stored under it.
+    const table = layouts();
+    expect(table.key({ primary: 21, secondary: 0, variants: ["CDB_SAMPLE"] })).toEqual({
+      name: "CDB_SAMPLE",
+      primary: 21,
+      secondary: 0,
+      variants: ["CDB_SAMPLE"],
+    });
+    // No secondary stated is a key that carries one, the way a load case does.
+    expect(table.key({ primary: 21, variants: ["CDB_SAMPLE"] }).secondary).toBeNull();
+    // A key that states nothing to find is not a key.
+    expect(() => table.key({ variants: ["CDB_SAMPLE"] })).toThrowError(/primary number/);
+    expect(() => table.key({ primary: 21, variants: [] })).toThrowError(/primary number/);
+  });
+
   it("keeps packed text as codes, since only the interface can unpack them", () => {
     const label = layouts().layout("CDB_LABEL");
     expect(label.fields[1]).toEqual({
