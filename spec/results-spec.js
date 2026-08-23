@@ -4,6 +4,7 @@ const {
   mapResult,
   materialKeyOf,
   packedName,
+  packedText,
 } = require("../lib/results");
 
 function kindOf(mnr) {
@@ -17,6 +18,46 @@ function packed(text) {
   }
   return value >>> 0;
 }
+
+function packedUnicode(text, codes) {
+  const value = new Uint32Array(codes);
+  for (let index = 0; index < text.length; index += 2) {
+    const high = index + 1 < text.length ? text.charCodeAt(index + 1) : 0;
+    value[index >> 1] = text.charCodeAt(index) | (high << 16);
+  }
+  return value;
+}
+
+describe("packedText", () => {
+  it("reads two code units to the int, low half first", () => {
+    // "Steel" as SOFiSTiK stores it, taken from a material title in a real
+    // database: 0x00740053 is "St", and the zero half of the third int ends it.
+    expect(packedText(Uint32Array.of(0x00740053, 0x00650065, 0x0000006c, 0, 0))).toBe("Steel");
+    expect(packedText(packedUnicode("Steel", 17))).toBe("Steel");
+  });
+
+  it("keeps a code unit that no byte would hold", () => {
+    for (const text of ["Brücke Süd", "Przemostienie", "Träger 30°", "мост", "橋梁"]) {
+      expect(packedText(packedUnicode(text, 17))).toBe(text);
+    }
+  });
+
+  it("reads a string that fills its field to the last code", () => {
+    // Nothing terminates it, so the field width is what says where it ends.
+    // sof_lib_ps2cs returns nothing at all for this one.
+    const full = "A".repeat(34);
+    expect(packedText(packedUnicode(full, 17))).toBe(full);
+    expect(packedText(packedUnicode("B".repeat(33), 17))).toBe("B".repeat(33));
+  });
+
+  it("ends at the first zero half and drops the padding behind it", () => {
+    expect(packedText(Uint32Array.of(0))).toBe("");
+    expect(packedText(new Uint32Array(0))).toBe("");
+    expect(packedText(packedUnicode("Deck  ", 17))).toBe("Deck");
+    // A zero low half ends the string even when the int carries a high half.
+    expect(packedText(Uint32Array.of(0x00420041, 0x00430000, 0))).toBe("AB");
+  });
+});
 
 describe("materialKeyOf", () => {
   it("bands a beam result the way the help documents it", () => {

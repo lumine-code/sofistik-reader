@@ -1,6 +1,5 @@
 #include <napi.h>
 
-#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -26,8 +25,6 @@ constexpr int kEnquireMin = -2;
 constexpr int kMaxRecordSize = 1 << 20;
 constexpr std::size_t kMaxRecords = 50'000'000;
 
-using PackedCode = std::uint32_t;
-
 #ifdef _WIN32
 #define SOFISTIK_CDB_CALL __cdecl
 #else
@@ -39,7 +36,6 @@ using GetFunction = int(SOFISTIK_CDB_CALL*)(int, int, int, void*, int*, int);
 using EnquireFunction = int(SOFISTIK_CDB_CALL*)(int, int*, int*, int);
 using MessageLevelFunction = int(SOFISTIK_CDB_CALL*)(int);
 using LockHandlingFunction = int(SOFISTIK_CDB_CALL*)(int);
-using PackedStringFunction = void(SOFISTIK_CDB_CALL*)(PackedCode*, char*, int);
 using RecordVersionFunction = int(SOFISTIK_CDB_CALL*)(int, int, int, int*);
 #undef SOFISTIK_CDB_CALL
 
@@ -65,7 +61,6 @@ class CdbReader : public Napi::ObjectWrap<CdbReader> {
                        {InstanceMethod("read", &CdbReader::Read),
                         InstanceMethod("version", &CdbReader::Version),
                         InstanceMethod("keys", &CdbReader::Keys),
-                        InstanceMethod("text", &CdbReader::Text),
                         InstanceMethod("close", &CdbReader::Close)});
   }
 
@@ -96,7 +91,6 @@ class CdbReader : public Napi::ObjectWrap<CdbReader> {
   EnquireFunction enquire_ = nullptr;
   MessageLevelFunction message_level_ = nullptr;
   LockHandlingFunction lock_handling_ = nullptr;
-  PackedStringFunction packed_string_ = nullptr;
   RecordVersionFunction record_version_ = nullptr;
   int index_ = 0;
   bool closed_ = true;
@@ -141,7 +135,6 @@ class CdbReader : public Napi::ObjectWrap<CdbReader> {
       lock_handling_ = LoadOptionalFunction<LockHandlingFunction>(
           "?sof_cdb_setlockhandling@@YAHH@Z");
     }
-    packed_string_ = LoadFunction<PackedStringFunction>("sof_lib_ps2cs");
     record_version_ = LoadOptionalFunction<RecordVersionFunction>("sof_cdb_getvers");
 
     message_level_(kMessageOff);
@@ -192,16 +185,6 @@ class CdbReader : public Napi::ObjectWrap<CdbReader> {
       if (next_primary == current_primary && next_secondary == current_secondary) break;
       current_primary = next_primary;
       current_secondary = next_secondary;
-    }
-    return result;
-  }
-
-  std::string DecodeText(PackedCode* packed, int capacity) const {
-    std::vector<char> text(static_cast<std::size_t>(capacity) + 1, '\0');
-    packed_string_(packed, text.data(), capacity);
-    std::string result(text.data());
-    while (!result.empty() && std::isspace(static_cast<unsigned char>(result.back()))) {
-      result.pop_back();
     }
     return result;
   }
@@ -314,28 +297,6 @@ class CdbReader : public Napi::ObjectWrap<CdbReader> {
 
   // Unpacks a run of packed character codes. Each code carries two characters,
   // so a run of n codes decodes to 2n - 1 characters.
-  Napi::Value Text(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-    if (info.Length() < 1 || !info[0].IsTypedArray()) {
-      Napi::TypeError::New(env, "text(packedCodes) requires a typed array.")
-          .ThrowAsJavaScriptException();
-      return env.Undefined();
-    }
-    try {
-      EnsureOpen();
-      Napi::TypedArray codes = info[0].As<Napi::TypedArray>();
-      const std::size_t count = codes.ByteLength() / sizeof(PackedCode);
-      if (count == 0) return Napi::String::New(env, "");
-      const int capacity = static_cast<int>(count) * 2 - 1;
-      auto* packed = reinterpret_cast<PackedCode*>(
-          static_cast<std::uint8_t*>(codes.ArrayBuffer().Data()) + codes.ByteOffset());
-      return Napi::String::New(env, DecodeText(packed, capacity));
-    } catch (const std::exception& error) {
-      Napi::Error::New(env, error.what()).ThrowAsJavaScriptException();
-      return env.Undefined();
-    }
-  }
-
   Napi::Value Close(const Napi::CallbackInfo& info) {
     CloseNative();
     return info.Env().Undefined();
