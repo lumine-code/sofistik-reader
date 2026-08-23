@@ -8,11 +8,12 @@ The library for read-only access to the stable SOFiSTiK CDB C interface. It owns
 
 ## Features
 
-- **Version-selected runtime**: resolves the 64-bit interface DLL from the SOFiSTiK release year and edition, including the 2018 and 2020 series that predate the year-named interface.
+- **Version-selected runtime**: resolves the 64-bit interface DLL from the SOFiSTiK release year and edition, covering every release from 2018 to 2026 including the 2018 and 2020 series that predate the year-named interface.
 - **Process isolation**: gives each database object its own Node child process so DLL search paths and native reader state do not leak between models.
 - **Read-only model access**: reads elements, sections, materials, groups, load cases, and the force, stress and reinforcement results stored against them.
 - **Coordinate fidelity**: returns coordinates, local axes and result vectors exactly as the database stores them.
 - **Columnar results**: decodes a read into one typed array per field, so a large model costs an allocation per field rather than an object per record.
+- **Cross-release decoding**: reads a record stored in a form the selected release does not describe by taking the layout from whichever installed release does.
 
 ## Installation
 
@@ -66,6 +67,29 @@ beamForces: { key: "BEAM_FOC", items: "CDB_BEAM_FOR", envelope: "CDB_BEAM_FOC", 
 
 The CDB key, the record kinds stored under it, and every field come from the headers. It ships with elements, sections, materials, groups, load cases, and forces, stresses and reinforcement for beams, quads, trusses, cables, springs and design lines.
 
+### Records across releases
+
+The length CDB stores a record at is the layout it was written with, and the release opening a database is not always the release that wrote it. SOFiSTiK changes record layouts between releases in three ways, and only the first is harmless: a field appended to the end, a field inserted into the middle, and a run of fields dropped out of the middle. `CDB_SECT_PAN` grew from 96 bytes to 100 in 2025; `CDB_SECT_PPT` gained a field in the middle the same year; `CDB_BEAM_FOR` lost ten fields out of the middle in 2024.
+
+So a record is decoded with a layout whose size **is** the stored size, never by truncating a longer one to fit. When the selected release does not describe the stored form, the releases installed beside it are asked, and the one that describes exactly that length answers. The read then reports where its layout came from:
+
+```js
+const section = await database.read("section", 71);
+section.panels.count; // 8
+section.panels.describedBy; // { version: "2025", length: 100, alsoDescribedBy: ["2026"] }
+```
+
+Two releases that lay a length out identically but renamed a field are not in disagreement — the bytes decode to the same numbers — and the release nearest the one being read through supplies the names. Two that lay it out differently are refused rather than guessed between. When no installed release describes the stored form at all, the read says so, naming the lengths the key holds and the releases that were asked.
+
+**What this cannot see.** SOFiSTiK has twice changed a record's meaning without changing its length, and nothing in the database distinguishes the two forms — the record version CDB stores is not maintained, and the `_VER` macro in the headers is frozen at a value the layout has since outgrown. In those cases the selected release is taken at its word:
+
+| record        | releases                         | what moved                                                                                                                |
+| ------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `CDB_GRP`     | 2018–2020 against 2022 and later | everything from offset 32 on: `faks`, `faka`, `fakt`, `vtot`, `mtot`, `rtot` became `ibb`, `ibd`, `ibg`, `v1`, `v2`, `v3` |
+| `CDB_LC_CTRL` | 2018–2024 against 2025 and later | `name` shortened by one code and `access` inserted behind it                                                              |
+
+Reading either of those across that boundary needs the release the database was written with. Everything else in the catalogue decodes to the same values through every release from 2018 to 2026 that describes it.
+
 ## Results
 
 `nodeResults`, `springResults`, `beamForces`, `beamStresses`, `trussStresses`, `quadForces` and `quadStresses` are read one load case at a time, and each is mapped the way `cdbase.chm` documents its key:
@@ -108,7 +132,7 @@ Returns `[{ version, installRoot, editions }]` for everything installed below `o
 
 ### `database.read(name, secondary, options)`
 
-Reads one record kind from `RECORDS`. `secondary` is the load case, section or material number the record is stored under, when the key does not fix it. Returns `{count, fields, columns, indices, envelope, recordLength, partial}`, plus a named entry for each part a key carries — a beam's cross-sections arrive as `beams.sections`, with an `owners` column naming the beam each one belongs to. Nothing is cached: the caller decides how long to hold a result.
+Reads one record kind from `RECORDS`. `secondary` is the load case, section or material number the record is stored under, when the key does not fix it. Returns `{count, fields, columns, indices, envelope, recordLength, partial, describedBy}`, plus a named entry for each part a key carries — a beam's cross-sections arrive as `beams.sections`, with an `owners` column naming the beam each one belongs to. Nothing is cached: the caller decides how long to hold a result.
 
 ### `database.keys(name)`
 
