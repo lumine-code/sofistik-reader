@@ -233,3 +233,46 @@ describe("the material catalog", () => {
     expect(RECORDS.materialSteel).toBeUndefined();
   });
 });
+
+describe("the load case catalog", () => {
+  it("tells a superposition and an eigenmode from the load case they share a length with", () => {
+    // All three are 188 bytes under one key, so the leading int is the whole of
+    // what separates them; without these a superposition would be read through
+    // the plain load case's layout and its envelope kind would come back as a
+    // theory of second order.
+    const parts = RECORDS.loadCase.parts;
+    expect(parts.superposition.when).toEqual({ field: 0, min: 2, max: 2 });
+    expect(parts.eigenmode.when).toEqual({ field: 0, min: 4, max: 4 });
+    expect(parts.superposition.record).toBe("CDB_LC_SUPE");
+    expect(parts.eigenmode.record).toBe("CDB_LC_EIGE");
+
+    const variants = Object.values(parts).map(({ when }) => ({ when }));
+    const read = readOf([
+      { length: 188, ints: [0] }, // a linear load case
+      { length: 188, ints: [2] }, // a superposition
+      { length: 188, ints: [4] }, // an eigenmode
+    ]);
+    const { masks, items } = selectionsFor(read, variants);
+    expect(selected(masks[0])).toEqual([1]);
+    expect(selected(masks[1])).toEqual([2]);
+    // The load case itself is what neither of them claimed.
+    expect(selected(items)).toEqual([0]);
+  });
+});
+
+describe("the group and control catalog", () => {
+  it("merges the per-element-type group record back into the group", () => {
+    // The help: "for each group and each element type will exist a record".
+    // That short form is the same kind cut off, not a kind of its own, so
+    // merging is what keeps it from being dropped as an unrecognised length.
+    expect(RECORDS.groups.merge).toBe(true);
+    expect(RECORDS.groups.parts).toBeUndefined();
+  });
+
+  it("reads the control record the unit set is stored in", () => {
+    // Field codes name what a column holds; the set names what it is held in.
+    // Neither answers on its own, so the record that carries the set is read.
+    expect(RECORDS.control).toEqual({ key: "CTRL", items: "CDB_CTRL" });
+    expect(RECORDS.control.secondary).toBeUndefined();
+  });
+});
