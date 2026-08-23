@@ -6,7 +6,7 @@ const {
   selectionsFor,
   wordsNeeded,
 } = require("../lib/record-selection");
-const { RECORDS } = require("../lib/records");
+const { RECORDS, recordKindsOf } = require("../lib/records");
 
 // A read as the native reader hands it over: the length CDB reported for each
 // record, and every record's bytes end to end.
@@ -206,6 +206,26 @@ describe("the material catalog", () => {
       timber: [3000, 3999],
       brickwork: [100000, 199999],
     });
+  });
+
+  it("names every record kind it reads, and names them", () => {
+    // A part written with a condition is a descriptor, and what an entry names
+    // is the record inside it rather than the descriptor around it.
+    expect(recordKindsOf(RECORDS.material)).toEqual([
+      "CDB_MAT",
+      "CDB_MAT_FLUI",
+      "CDB_MAT_CONS",
+      "CDB_MAT_CONC",
+      "CDB_MAT_STEE",
+      "CDB_MAT_TIMB",
+      "CDB_MAT_BRIC",
+    ]);
+    // The same for every entry, whichever form its parts take.
+    for (const definition of Object.values(RECORDS)) {
+      expect(recordKindsOf(definition).every((kind) => typeof kind === "string")).toBe(true);
+    }
+    expect(recordKindsOf(RECORDS.beamStresses)).toContain("CDB_BEAM_TST");
+    expect(recordKindsOf(RECORDS.nodes)).toEqual(["CDB_NODE"]);
   });
 
   it("no longer offers a kind a caller has to choose blind", () => {
