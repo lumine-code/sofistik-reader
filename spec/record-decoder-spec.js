@@ -24,26 +24,45 @@ const ENVELOPE = {
   ],
 };
 
+// `length` writes a record CDB stopped short of its layout, which is how a
+// trailing array reaches a database: filled to whatever the model needed.
 function read(records) {
-  const lengths = records.map(({ layout }) => layout.size);
+  const lengths = records.map(({ layout, length }) => length ?? layout.size);
   const data = Buffer.alloc(lengths.reduce((total, length) => total + length, 0));
   let offset = 0;
-  for (const { layout, values } of records) {
+  records.forEach(({ layout, values }, record) => {
+    const end = offset + lengths[record];
     for (const field of layout.fields) {
       const value = values[field.name];
+      if (value === undefined) continue;
       const items = Array.isArray(value) ? value : [value];
       items.forEach((item, index) => {
         const at = offset + field.offset + index * field.size;
+        if (at + field.size > end) return;
         if (field.kind === "f32") data.writeFloatLE(item, at);
         else if (field.kind === "i16") data.writeInt16LE(item, at);
         else if (field.kind === "text") data.writeUInt32LE(item, at);
         else data.writeInt32LE(item, at);
       });
     }
-    offset += layout.size;
-  }
+    offset += lengths[record];
+  });
   return { count: records.length, lengths, data };
 }
+
+// A head and a long trailing array, the shape CDB truncates: a thermal
+// eigenstress record declares 256 temperatures and stores as few as six.
+const TRAILING = {
+  name: "CDB_TRAILING",
+  size: 48,
+  alignment: 4,
+  fields: [
+    { name: "nr", kind: "i32", offset: 0, size: 4, count: 1, dimensions: [] },
+    { name: "x", kind: "f32", offset: 4, size: 4, count: 1, dimensions: [] },
+    { name: "ts", kind: "f32", offset: 8, size: 4, count: 8, dimensions: [8] },
+    { name: "tail", kind: "i32", offset: 40, size: 4, count: 2, dimensions: [2] },
+  ],
+};
 
 describe("decodeMerged", () => {
   it("merges the stored forms of one record kind back into record order", () => {
@@ -66,6 +85,27 @@ describe("decodeMerged", () => {
       { length: 24, count: 2 },
       { length: 8, count: 2 },
     ]);
+  });
+
+  it("gives one column the widest form's shape, however far each form was cut", () => {
+    // The same kind stored twice, its trailing array filled to a different
+    // length each time. The merged column is as wide as the widest form and a
+    // shorter one writes what it has into the front of its own slot.
+    const source = read([
+      { layout: TRAILING, length: 28, values: { nr: 1, x: 0, ts: [1, 2, 3, 4, 5, 6, 7, 8] } },
+      { layout: TRAILING, length: 16, values: { nr: 2, x: 0, ts: [9, 8, 7, 6, 5, 4, 3, 2] } },
+      { layout: TRAILING, length: 28, values: { nr: 3, x: 0, ts: [4, 4, 4, 4, 4, 4, 4, 4] } },
+    ]);
+
+    const merged = decodeMerged(TRAILING, source);
+    expect(merged.count).toBe(3);
+    expect(Array.from(merged.columns.nr)).toEqual([1, 2, 3]);
+    expect(merged.fields.find(({ name }) => name === "ts").count).toBe(5);
+    // Five elements a slot: the short record's two, then zeros for what it did
+    // not store - which is what CDB means by not storing them.
+    expect(Array.from(merged.columns.ts)).toEqual([1, 2, 3, 4, 5, 9, 8, 0, 0, 0, 4, 4, 4, 4, 4]);
+    expect(Array.from(merged.recordLengths)).toEqual([28, 16, 28]);
+    expect(merged.partial.shortened).toEqual([{ name: "ts", count: 5, of: 8 }]);
   });
 
   it("decodes one stored form without merging anything", () => {
@@ -129,6 +169,65 @@ describe("decodeRecords", () => {
     expect(envelope.count).toBe(1);
     expect(envelope.columns.peak).toEqual(Float32Array.from([12.5]));
     expect(envelope.skipped).toEqual([{ length: 24, count: 2 }]);
+  });
+
+  it("keeps the elements of an array a truncated record does reach", () => {
+    // Stored at 20 bytes: the head, then three of the eight temperatures. The
+    // three are in the database and are as real as any other value in it.
+    const source = read([
+      { layout: TRAILING, length: 20, values: { nr: 5, x: 1.5, ts: [1, 2, 3, 9, 9, 9, 9, 9] } },
+    ]);
+    const decoded = decodeRecords(TRAILING, source, { storedLength: 20 });
+
+    expect(decoded.count).toBe(1);
+    expect(decoded.columns.ts).toEqual(Float32Array.from([1, 2, 3]));
+    expect(decoded.fields).toEqual([
+      { name: "nr", kind: "i32", count: 1 },
+      { name: "x", kind: "f32", count: 1 },
+      { name: "ts", kind: "f32", count: 3 },
+    ]);
+    // A field the record cuts short and one it never begins are different
+    // things, and are reported as different things.
+    expect(decoded.partial).toEqual({
+      storedLength: 20,
+      layoutLength: 48,
+      dropped: ["tail"],
+      shortened: [{ name: "ts", count: 3, of: 8 }],
+    });
+    // The count a caller indexes by is the truncated one.
+    expect(toObjects(decoded)).toEqual([{ nr: 5, x: 1.5, ts: [1, 2, 3] }]);
+  });
+
+  it("counts only the elements a record holds whole", () => {
+    // Two floats fit in the eleven bytes past the head; the third is cut across
+    // the end and is not a float.
+    const decoded = decodeRecords(TRAILING, read([{ layout: TRAILING, length: 19, values: {} }]), {
+      storedLength: 19,
+    });
+    expect(decoded.partial.shortened).toEqual([{ name: "ts", count: 2, of: 8 }]);
+  });
+
+  it("says nothing was cut short when nothing was", () => {
+    const whole = decodeRecords(TRAILING, read([{ layout: TRAILING, values: {} }]));
+    expect(whole.partial).toBe(null);
+    // A record that ends exactly where a field begins drops it rather than
+    // keeping nothing of it.
+    const decoded = decodeRecords(TRAILING, read([{ layout: TRAILING, length: 8, values: {} }]), {
+      storedLength: 8,
+    });
+    expect(decoded.partial).toEqual({
+      storedLength: 8,
+      layoutLength: 48,
+      dropped: ["ts", "tail"],
+    });
+  });
+
+  it("leaves the layout it was handed alone", () => {
+    // Layouts belong to the installation and are shared by every read of it.
+    decodeRecords(TRAILING, read([{ layout: TRAILING, length: 20, values: {} }]), {
+      storedLength: 20,
+    });
+    expect(TRAILING.fields.find(({ name }) => name === "ts").count).toBe(8);
   });
 
   it("builds plain objects only when asked", () => {
