@@ -41,7 +41,7 @@ const RELEASES = {
 };
 
 function layoutsOf(version) {
-  return recordLayoutsFor(`C:/installed/SOFiSTiK ${version}`, {
+  return recordLayoutsFor(`installed-${version}`, {
     headerDirectory: `headers-${version}`,
     readdir: () => Object.keys(RELEASES[version]),
     readFile: (file) => RELEASES[version][path.basename(file)],
@@ -114,7 +114,7 @@ describe("layoutDescribing", () => {
     const context = contextFor(2026, [2024]);
     context.siblings.push({
       version: "2019",
-      layouts: recordLayoutsFor("C:/installed/SOFiSTiK 2019", {
+      layouts: recordLayoutsFor("installed-2019", {
         headerDirectory: "headers-2019",
         readdir: () => Object.keys(wider),
         readFile: () => wider["cdbtypetest.h"],
@@ -142,8 +142,10 @@ describe("siblingLayouts", () => {
     const installed = ["2026", "2025", "2024"];
     const siblings = siblingLayouts(
       {
-        environmentRoot: "C:/installed",
-        installRoot: path.join("C:/installed", "2025", "SOFiSTiK 2025"),
+        environmentRoot: "installed",
+        // The installation is named the way the library names it, from a root it
+        // has resolved, so the spec does not assume a platform's idea of a path.
+        installRoot: path.join(path.resolve("installed"), "2025", "SOFiSTiK 2025"),
       },
       {
         exists: () => true,
@@ -159,6 +161,6 @@ describe("siblingLayouts", () => {
   });
 
   it("has no siblings to ask when it was told no environment", () => {
-    expect(siblingLayouts({ installRoot: "C:/installed/2026/SOFiSTiK 2026" })).toEqual([]);
+    expect(siblingLayouts({ installRoot: path.resolve("installed", "2026") })).toEqual([]);
   });
 });
