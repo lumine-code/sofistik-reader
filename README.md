@@ -79,6 +79,8 @@ section.panels.count; // 8
 section.panels.describedBy; // { version: "2025", length: 100, alsoDescribedBy: ["2026"] }
 ```
 
+A key is read into a buffer sized by the largest record the selected release describes under it, and grown and read again when CDB reports one longer than that — a later release storing a bigger record is read rather than refused.
+
 Two releases that lay a length out identically but renamed a field are not in disagreement — the bytes decode to the same numbers — and the release nearest the one being read through supplies the names. Two that lay it out differently are refused rather than guessed between. When no installed release describes the stored form at all, the read says so, naming the lengths the key holds and the releases that were asked.
 
 **What this cannot see.** SOFiSTiK has twice changed a record's meaning without changing its length, and nothing in the database distinguishes the two forms — the record version CDB stores is not maintained, and the `_VER` macro in the headers is frozen at a value the layout has since outgrown. In those cases the selected release is taken at its word:

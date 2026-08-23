@@ -1,5 +1,6 @@
 #include <napi.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -208,28 +209,52 @@ class CdbReader : public Napi::ObjectWrap<CdbReader> {
       if (max_size <= 0 || max_size > kMaxRecordSize) {
         throw std::range_error("The record size is outside the CDB record limits.");
       }
-      std::vector<std::uint8_t> record(static_cast<std::size_t>(max_size));
+      // The caller sizes the read by the largest record the installed headers
+      // describe under this key, and a database written by a later release can
+      // hold a longer one - SOFiSTiK grows a record between releases. CDB
+      // reports the length of a record that did not fit, so the key is read
+      // again with room for it rather than refused. The read restarts from the
+      // beginning because a record that did not fit has already been passed.
+      auto capacity = static_cast<std::size_t>(max_size);
+      std::vector<std::uint8_t> record;
       auto data = std::make_unique<std::vector<std::uint8_t>>();
       std::vector<std::int32_t> lengths;
-      int position = 0;
       while (true) {
-        int length = max_size;
-        std::memset(record.data(), 0, record.size());
-        const int result =
-            get_(index_, primary_key, secondary_key, record.data(), &length, position);
-        if (result >= kDataEnd) break;
-        if (length < 0 || length > max_size) {
-          throw std::runtime_error("CDB record " + std::to_string(primary_key) + "/" +
-                                   std::to_string(secondary_key) + " is " +
-                                   std::to_string(length) + " bytes, longer than the " +
-                                   std::to_string(max_size) + " bytes this key was read with.");
+        record.assign(capacity, 0);
+        data->clear();
+        lengths.clear();
+        std::size_t wanted = 0;
+        int position = 0;
+        while (true) {
+          int length = static_cast<int>(capacity);
+          std::memset(record.data(), 0, record.size());
+          const int result =
+              get_(index_, primary_key, secondary_key, record.data(), &length, position);
+          if (result >= kDataEnd) break;
+          if (length < 0) {
+            throw std::runtime_error("CDB reported a negative length for record " +
+                                     std::to_string(primary_key) + "/" +
+                                     std::to_string(secondary_key) + ".");
+          }
+          if (static_cast<std::size_t>(length) > capacity) {
+            if (length > kMaxRecordSize) {
+              throw std::runtime_error("CDB record " + std::to_string(primary_key) + "/" +
+                                       std::to_string(secondary_key) + " is " +
+                                       std::to_string(length) +
+                                       " bytes, beyond the CDB record limit.");
+            }
+            wanted = std::max(wanted, static_cast<std::size_t>(length));
+            break;
+          }
+          data->insert(data->end(), record.begin(), record.begin() + length);
+          lengths.push_back(length);
+          position = 1;
+          if (lengths.size() > kMaxRecords) {
+            throw std::runtime_error("The CDB key did not reach an end of data.");
+          }
         }
-        data->insert(data->end(), record.begin(), record.begin() + length);
-        lengths.push_back(length);
-        position = 1;
-        if (lengths.size() > kMaxRecords) {
-          throw std::runtime_error("The CDB key did not reach an end of data.");
-        }
+        if (wanted <= capacity) break;
+        capacity = wanted;
       }
 
       Napi::Object result = Napi::Object::New(env);
