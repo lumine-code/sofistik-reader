@@ -4,6 +4,7 @@ const {
   mapResult,
   materialKeyOf,
   packedName,
+  packedNames,
   packedText,
 } = require("../lib/results");
 
@@ -27,6 +28,33 @@ function packedUnicode(text, codes) {
   }
   return value;
 }
+
+describe("packedNames", () => {
+  it("reads a run of packs as the one name it is", () => {
+    // A load case names itself over seven ints, four ANSI characters to each.
+    // Reading only the first is reading four characters of a name.
+    const run = ["ASE2", "026-", "4.0.", "709"].map(packed);
+    expect(packedNames(run)).toBe("ASE2026-4.0.709");
+    expect(packedName(run[0])).toBe("ASE2");
+  });
+
+  it("ends at the first zero byte, wherever in the run it falls", () => {
+    expect(packedNames([packed("AB"), packed("CD")])).toBe("AB");
+    expect(packedNames([packed("ABCD"), packed("EF")])).toBe("ABCDEF");
+    expect(packedNames([])).toBe("");
+    expect(packedNames([0])).toBe("");
+  });
+
+  it("keeps a space inside a name and drops the padding around it", () => {
+    // The trim is of the whole name, not of each pack, or a space landing on a
+    // pack boundary would vanish from the middle of it.
+    expect(packedNames([packed("Load"), packed(" cas"), packed("e 1 ")])).toBe("Load case 1");
+  });
+
+  it("is what one pack means too", () => {
+    expect(packedNames([packed("SO")])).toBe(packedName(packed("SO")));
+  });
+});
 
 describe("packedText", () => {
   it("reads two code units to the int, low half first", () => {
