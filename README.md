@@ -67,6 +67,22 @@ beamForces: { key: "BEAM_FOC", items: "CDB_BEAM_FOR", envelope: "CDB_BEAM_FOC", 
 
 The CDB key, the record kinds stored under it, and every field come from the headers. It ships with elements, sections, materials, groups, load cases, and forces, stresses and reinforcement for beams, quads, trusses, cables, springs and design lines.
 
+### Records that share a key
+
+CDB stores several record kinds under one key and gives a reader nothing but the bytes. Where their lengths differ, the length tells them apart. Where they do not, SOFiSTiK's own help states the discriminator beside the key — `105/LC:+:1?????` is a thermal eigenstress, `001/NR:1:2???` a steel material — and a catalogue entry says the same thing, as a range over one of a record's leading ints, or several ranges that must all hold.
+
+A material needs both. Its constants, concrete, steel, timber and brickwork records are every one of them 140 bytes with a leading int of 1, and the type behind that int is what separates them: the constants take `0???`, a fluid the `08??` inside it, concrete `1???`, steel `2???`, timber `3???`, brickwork `1?????`. So a material is read whole, and each kind arrives as its own part, present only when the material is of that kind:
+
+```js
+const material = await database.read("material", 3);
+material.columns.title; // ["Reinforcement"]
+material.steel.count; // 1
+material.steel.columns.fy; // the yield strength
+material.concrete.count; // 0 - this material is not concrete
+```
+
+The bands are the ones the help documents and they have not moved since 2018. A kind whose band lies inside another's is declared first, because the first kind whose condition holds takes the record.
+
 ### Records across releases
 
 The length CDB stores a record at is the layout it was written with, and the release opening a database is not always the release that wrote it. SOFiSTiK changes record layouts between releases in three ways, and only the first is harmless: a field appended to the end, a field inserted into the middle, and a run of fields dropped out of the middle. `CDB_SECT_PAN` grew from 96 bytes to 100 in 2025; `CDB_SECT_PPT` gained a field in the middle the same year; `CDB_BEAM_FOR` lost ten fields out of the middle in 2024.
