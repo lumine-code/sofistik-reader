@@ -130,6 +130,16 @@ stresses.tendons; // stresses in tendons, stored under the same key
 
 A record kind is decoded only when its stored length matches the layout the installed headers describe. A database written by an older release stores an older, usually shorter, record; that read fails naming both lengths rather than decoding whatever follows. Pass `{ partial: true }` to decode the fields that do fit — the result then carries `partial.dropped`, the fields that were not stored.
 
+A record does not always end at a field boundary. CDB writes a trailing array only as far as it was filled, so a field can begin inside the stored record and run past its end — a thermal eigenstress record declares 256 temperatures and a beam with six stress points stores six of them. The elements that are there are kept, the field reports the count it actually holds, and `partial.shortened` says which fields were cut and how far:
+
+```js
+const stresses = await database.read("beamStresses", 101, { partial: true });
+stresses.thermal.partial.shortened; // [{ name: "ts", count: 6, of: 256 }]
+stresses.thermal.columns.ts; // six temperatures a record, not none
+```
+
+A field the record never begins stays in `partial.dropped`; the two are different things and are reported separately.
+
 ## API
 
 ### `openDatabase(databasePath, options)`
