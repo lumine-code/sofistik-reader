@@ -149,6 +149,15 @@ describe("decodeRecords", () => {
       { name: "flag", kind: "i16", count: 1 },
       { name: "text", kind: "text", count: 1 },
     ]);
+    // A field that names a quantity carries the code with it, because a caller
+    // converting out of SOFiSTiK's unit set reads the code and not the name.
+    const withUnit = { ...SAMPLE, fields: SAMPLE.fields.map((f) => ({ ...f, unit: 1001 })) };
+    expect(decodeRecords(withUnit, read([])).fields[0]).toEqual({
+      name: "nr",
+      kind: "i32",
+      count: 1,
+      unit: 1001,
+    });
   });
 
   it("decodes only the records that match the layout and reports the rest", () => {
