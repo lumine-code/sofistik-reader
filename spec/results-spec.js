@@ -6,6 +6,7 @@ const {
   packedName,
   packedNames,
   packedText,
+  secondaryGroupSelection,
 } = require("../lib/results");
 
 function kindOf(mnr) {
@@ -172,5 +173,60 @@ describe("envelopeOf", () => {
     });
     expect(envelopeOf(null)).toBeNull();
     expect(envelopeOf({ count: 0 })).toBeNull();
+  });
+});
+
+describe("secondaryGroupSelection", () => {
+  it("reads a run of individuals and ranges", () => {
+    // "21,-23 selects the range (21:23)", and a positive number with nothing
+    // negative behind it is one element.
+    expect(secondaryGroupSelection([21, -23, 30, 41, -44])).toEqual({
+      ranges: [
+        [21, 23],
+        [30, 30],
+        [41, 44],
+      ],
+      references: [],
+    });
+  });
+
+  it("reads the lead-in forms as references rather than numbers", () => {
+    // Which elements a group or a structural line holds is a question only the
+    // rest of the database answers, so these cannot be flattened into numbers.
+    expect(secondaryGroupSelection([0, 7]).references).toEqual([{ kind: "group", number: 7 }]);
+    expect(secondaryGroupSelection([0, -1]).references).toEqual([{ kind: "all" }]);
+    expect(secondaryGroupSelection([0, -31, 12]).references).toEqual([
+      { kind: "line", number: 12 },
+    ]);
+    expect(secondaryGroupSelection([0, -30, 1]).references).toEqual([{ kind: "point", number: 1 }]);
+    expect(secondaryGroupSelection([0, -32, 5]).references).toEqual([{ kind: "area", number: 5 }]);
+    expect(secondaryGroupSelection([0, -33, 9]).references).toEqual([
+      { kind: "volume", number: 9 },
+    ]);
+    expect(secondaryGroupSelection([0, -7]).references).toEqual([{ kind: "pattern", number: 7 }]);
+  });
+
+  it("takes both forms in one list, in the order they were written", () => {
+    expect(secondaryGroupSelection([100, -120, 0, 7, 200])).toEqual({
+      ranges: [
+        [100, 120],
+        [200, 200],
+      ],
+      references: [{ kind: "group", number: 7 }],
+    });
+  });
+
+  it("stops at the padding rather than selecting group zero", () => {
+    // The array is 255 long however few numbers were written into it, so a zero
+    // followed by a zero is where the writing stopped.
+    expect(secondaryGroupSelection([21, -23, 0, 0, 0, 0])).toEqual({
+      ranges: [[21, 23]],
+      references: [],
+    });
+    expect(secondaryGroupSelection([])).toEqual({ ranges: [], references: [] });
+    expect(secondaryGroupSelection(Int32Array.of(5))).toEqual({
+      ranges: [[5, 5]],
+      references: [],
+    });
   });
 });
