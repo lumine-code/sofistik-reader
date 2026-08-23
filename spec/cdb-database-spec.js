@@ -53,6 +53,11 @@ describe("CdbDatabase", () => {
     expect(requests[0].options.payload).toEqual({
       databasePath: path.resolve("models/main.cdb"),
       dllPath: path.join(installRoot, "interfaces", "64bit", "sof_cdb_w_edu-2026.dll"),
+      // The worker is handed the whole environment, not only this release: a
+      // record stored in a form this release does not describe is looked up in
+      // the releases installed beside it.
+      environmentRoot: path.resolve("installed/sofistik"),
+      version: "2026",
       installRoot,
     });
     // A read names the record, the key it is stored under, and whether the

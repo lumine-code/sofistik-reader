@@ -36,6 +36,10 @@ describe("resolveInterface", () => {
     expect(interfaceFor("2026")).toEqual({
       version: "2026",
       edition: "professional",
+      // The root comes back with the installation: a database can hold a record
+      // in a form its own release does not describe, and the releases installed
+      // beside it are where that form is described.
+      environmentRoot: path.resolve(root),
       installRoot,
       dllPath: path.join(installRoot, "interfaces", "64bit", "sof_cdb_w-2026.dll"),
     });
