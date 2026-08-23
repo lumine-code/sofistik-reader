@@ -70,7 +70,11 @@ describe("recordLayoutsFor", () => {
     const sample = layouts().layout("CDB_SAMPLE");
     expect(sample.fields).toEqual([
       { name: "nr", kind: "i32", offset: 0, size: 4, count: 1, dimensions: [] },
-      { name: "xyz", kind: "f32", offset: 4, size: 4, count: 3, dimensions: [3] },
+      // The quantity a field holds is stated in its comment, and a field that
+      // states one keeps it: a caller converting a database out of its own unit
+      // set has to know which columns are lengths, and a field's name is not a
+      // safe way to guess.
+      { name: "xyz", kind: "f32", offset: 4, size: 4, count: 3, dimensions: [3], unit: 1001 },
       // Padded from 16 to 16: already aligned, but the double sets the record's
       // own alignment, which rounds the size up.
       { name: "time", kind: "f64", offset: 16, size: 8, count: 1, dimensions: [] },
@@ -78,6 +82,8 @@ describe("recordLayoutsFor", () => {
     ]);
     expect(sample.size).toBe(40);
     expect(sample.alignment).toBe(8);
+    // A field whose comment names no quantity says nothing rather than zero.
+    expect("unit" in sample.fields[0]).toBe(false);
   });
 
   it("flattens a nested record into the record that contains it", () => {
