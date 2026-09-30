@@ -41,9 +41,11 @@ describe("sofistik-reader library conventions", () => {
     expect(ci).toMatch(/windows-latest/);
     expect(ci).toMatch(/npm pack --dry-run/);
     expect(ci).toMatch(/workflow_call:/);
-    const publish = fs.readFileSync(path.join(workflows, "publish.yml"), "utf8");
-    expect(publish).toMatch(/uses: \.\/\.github\/workflows\/ci\.yml/);
-    expect(publish).toMatch(/npm publish --access public --provenance/);
+    const release = fs.readFileSync(path.join(workflows, "publish.yml"), "utf8");
+    expect(release).toMatch(/name: Validate release/);
+    expect(release).toMatch(/uses: \.\/\.github\/workflows\/ci\.yml/);
+    expect(release).toMatch(/contents: read/);
+    expect(release).not.toMatch(/\b(?:npm|lpm)\s+publish\b|registry-url:|id-token:\s*write/);
   });
 });
 
