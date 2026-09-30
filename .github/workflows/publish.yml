@@ -1,4 +1,4 @@
-name: NPM Publish
+name: Validate release
 
 on:
   release:
@@ -9,22 +9,5 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  validate:
     uses: ./.github/workflows/ci.yml
-
-  publish:
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org/
-      - name: Use HTTPS for GitHub dependencies
-        run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
-      - run: npm ci
-      - run: npm publish --access public --provenance
