@@ -1,5 +1,9 @@
 const path = require("node:path");
-const { listInterfaces, resolveInterface } = require("../lib/sofistik-interface");
+const {
+  DEFAULT_ENVIRONMENT_ROOT,
+  listInterfaces,
+  resolveInterface,
+} = require("../lib/sofistik-interface");
 
 const root = path.resolve("SOFiSTiK");
 
@@ -31,6 +35,13 @@ function dllName(version, edition) {
 }
 
 describe("resolveInterface", () => {
+  it("preserves the public default installation root", () => {
+    expect(DEFAULT_ENVIRONMENT_ROOT).toBe("C:\\Program Files\\SOFiSTiK");
+    expect(resolveInterface({ version: "2026", exists: () => true }).environmentRoot).toBe(
+      path.resolve(DEFAULT_ENVIRONMENT_ROOT),
+    );
+  });
+
   it("derives the installation and the interface from a release year", () => {
     const installRoot = path.join(root, "2026", "SOFiSTiK 2026");
     expect(interfaceFor("2026")).toEqual({
@@ -57,6 +68,47 @@ describe("resolveInterface", () => {
     // resolves without this library learning about it.
     expect(dllName("2022", "professional")).toBe("sof_cdb_w-2022.dll");
     expect(dllName("2031", "educational")).toBe("sof_cdb_w_edu-2031.dll");
+  });
+
+  it("requires an explicit four-digit year before probing installed releases", () => {
+    const exists = jasmine.createSpy("exists").and.returnValue(true);
+    const readdir = jasmine.createSpy("readdir").and.returnValue(["2026"]);
+    for (const version of [
+      undefined,
+      null,
+      "",
+      "Auto",
+      "latest",
+      "26",
+      "2026-01",
+      "20260",
+      "../2026",
+    ])
+      expect(() =>
+        resolveInterface({ version, environmentRoot: root, exists, readdir }),
+      ).toThrowError();
+    expect(exists).not.toHaveBeenCalled();
+    expect(readdir).not.toHaveBeenCalled();
+    expect(interfaceFor(" 2026 ").version).toBe("2026");
+  });
+
+  it("accepts only exact edition names and never substitutes an available edition", () => {
+    for (const edition of [
+      "Professional",
+      " educational",
+      "educational ",
+      "student",
+      null,
+      { toString: () => "professional" },
+    ])
+      expect(() => interfaceFor("2026", edition)).toThrowError(/"professional" or "educational"/);
+    expect(() =>
+      resolveInterface({
+        version: "2026",
+        edition: "educational",
+        ...installation({ 2026: ["professional"] }),
+      }),
+    ).toThrowError(/educational SOFiSTiK 2026 CDB interface is missing:.*sof_cdb_w_edu-2026\.dll/);
   });
 
   it("reports what it looked for instead of failing inside the native loader", () => {
@@ -89,6 +141,41 @@ describe("resolveInterface", () => {
 });
 
 describe("listInterfaces", () => {
+  it("lists legacy series using the DLL each edition actually supplies", () => {
+    const root2018 = path.join(root, "2018", "SOFiSTiK 2018");
+    const root2020 = path.join(root, "2020", "SOFiSTiK 2020");
+    const paths = new Set([
+      root2018,
+      path.join(root2018, "interfaces", "64bit", "cdb_w_edu50_x64.dll"),
+      root2020,
+      path.join(root2020, "interfaces", "64bit", "sof_cdb_w-70.dll"),
+    ]);
+    expect(
+      listInterfaces({
+        environmentRoot: root,
+        exists: (file) => paths.has(file),
+        readdir: () => ["2018", "2020"],
+      }),
+    ).toEqual([
+      { version: "2020", installRoot: root2020, editions: ["professional"] },
+      { version: "2018", installRoot: root2018, editions: ["educational"] },
+    ]);
+  });
+
+  it("requires a CDB interface even when an executable marks the release installed", () => {
+    const installRoot = path.join(root, "2026", "SOFiSTiK 2026");
+    const paths = new Set([installRoot, path.join(installRoot, "sps.exe")]);
+    const options = {
+      environmentRoot: root,
+      exists: (file) => paths.has(file),
+      readdir: () => ["2026"],
+    };
+    expect(listInterfaces(options)).toEqual([]);
+    expect(() => resolveInterface({ version: "2026", ...options })).toThrowError(
+      /professional SOFiSTiK 2026 CDB interface is missing:/,
+    );
+  });
+
   it("reports the installed releases newest first, with their editions", () => {
     expect(
       listInterfaces(

@@ -26,7 +26,9 @@ describe("sofistik-reader library conventions", () => {
       .filter((name) => name.endsWith(".js"))
       .map((name) => fs.readFileSync(path.join(root, "lib", name), "utf8"))
       .join("\n");
-    expect(runtime).not.toMatch(/\b(?:graviss|lumine)\b/i);
+    expect(runtime).not.toMatch(
+      /require\(["'](?:@lumine-code\/)?(?:graviss|lumine)(?:\/[^"']*)?["']\)/i,
+    );
   });
 
   it("ships native build metadata and cross-platform checks", () => {

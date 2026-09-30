@@ -146,13 +146,15 @@ A field the record never begins stays in `partial.dropped`; the two are differen
 
 Returns a lazy `CdbDatabase`. The database is opened read-only on the first query. Options:
 
-- `version` — the SOFiSTiK release year, such as `"2026"`. Required.
+- `version` — an explicit four-digit SOFiSTiK release year, such as `"2026"`. Required.
 - `edition` — `"professional"` or `"educational"`, defaulting to `"professional"`.
 - `environmentRoot` — the directory holding the installed versions, defaulting to `C:\Program Files\SOFiSTiK`. The installation is `<environmentRoot>/<version>/SOFiSTiK <version>`.
 
+Installation paths and CDB DLL naming are shared with `@lumine-code/sofistik-env`. The reader requires an explicit release year and accepts the exact edition names `professional` and `educational`; the exported `DEFAULT_ENVIRONMENT_ROOT` constant remains the shared installation root.
+
 ### `resolveInterface(options)`
 
-Returns `{ version, edition, installRoot, dllPath }` for the same options, so an application can validate or display the selected interface before opening a database. A missing installation or a missing interface is reported here, by path, and names the releases that are installed instead.
+Returns `{ version, edition, environmentRoot, installRoot, dllPath }` for the same options, so an application can validate or display the selected interface before opening a database. A missing installation or a missing interface is reported here, by path, and names the releases that are installed instead.
 
 ### `listInterfaces(options)`
 
