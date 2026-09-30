@@ -36,7 +36,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@lumine-code/sofistik-env": "github:lumine-code/sofistik-env#63a6dab325fd658e50b232c977ad917a4adb15dc",
+    "@lumine-code/sofistik-env": "github:lumine-code/sofistik-env#7d14bea69540f905b9538cfb2fa5a191da3ffcea",
     "node-addon-api": "^8.9.2",
     "node-gyp-build": "^4.8.4"
   },
