@@ -21,6 +21,8 @@
   "files": [
     "binding.gyp",
     "lib",
+    "scripts",
+    "spec",
     "src"
   ],
   "engines": {
@@ -33,10 +35,11 @@
     "test": "jasmine",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "smoke:native": "node scripts/smoke-native.js"
   },
   "dependencies": {
-    "@lumine-code/sofistik-env": "github:lumine-code/sofistik-env#7d14bea69540f905b9538cfb2fa5a191da3ffcea",
+    "@lumine-code/sofistik-env": "github:lumine-code/sofistik-env#6385612d48b93993f4c5a2b4a0eb55805ddcfcf7",
     "node-addon-api": "^8.9.2",
     "node-gyp-build": "^4.8.4"
   },

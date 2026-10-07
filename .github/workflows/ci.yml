@@ -40,6 +40,8 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Build the Node-API addon
         run: npm run build
+      - name: Smoke-test the built addon
+        run: npm run smoke:native
       - name: Test
         run: npm test
       - name: Lint

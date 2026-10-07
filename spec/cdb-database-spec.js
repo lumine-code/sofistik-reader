@@ -39,7 +39,7 @@ describe("CdbDatabase", () => {
 
     expect(await database.read("nodes")).toEqual({ name: "nodes", count: 2, columns: {} });
     expect(Array.from(await database.keys("loadCase"))).toEqual([101, 102]);
-    expect(await database.read("nodeResults", 101, { partial: true })).toEqual(
+    expect(await database.read("nodeResults", 101, { decodePolicy: "variable-tail" })).toEqual(
       jasmine.objectContaining({ name: "nodeResults" }),
     );
 
@@ -65,7 +65,7 @@ describe("CdbDatabase", () => {
     expect(requests.at(-1).options.payload).toEqual({
       name: "nodeResults",
       secondary: 101,
-      partial: true,
+      decodePolicy: "variable-tail",
     });
   });
 
@@ -82,7 +82,7 @@ describe("CdbDatabase", () => {
     await first.database.dispose();
     expect(first.requests.at(-1)).toEqual({
       operation: "close",
-      options: { readerId: 17 },
+      options: { readerId: 17, timeoutMs: 2000 },
     });
     expect(first.bridge.disposed).toBe(true);
     // read is async, so a closed database rejects rather than throwing.
@@ -95,5 +95,63 @@ describe("CdbDatabase", () => {
     expect(
       () => new CdbDatabase("model.cdb", { version: "2026", exists: () => false }),
     ).toThrowError(/not installed/);
+  });
+});
+
+describe("database shutdown boundaries", () => {
+  it("finishes shutdown when opening never responds", async () => {
+    let rejectOpen;
+    const bridge = {
+      request: () =>
+        new Promise((_, reject) => {
+          rejectOpen = reject;
+        }),
+      dispose: jasmine.createSpy("dispose").and.callFake(() => rejectOpen(new Error("Stopped"))),
+    };
+    const db = openDatabase("model.cdb", {
+      version: "2026",
+      exists: () => true,
+      bridgeFactory: () => bridge,
+      shutdownTimeoutMs: 10,
+    });
+    const read = db.read("nodes");
+    const rejection = expectAsync(read).toBeRejected();
+    await db.dispose();
+    await rejection;
+    expect(bridge.dispose).toHaveBeenCalledTimes(1);
+  });
+  it("does not issue a record query after disposal starts during opening", async () => {
+    let resolveOpen;
+    const operations = [];
+    const bridge = {
+      request(operation) {
+        operations.push(operation);
+        return operation === "open"
+          ? new Promise((resolve) => {
+              resolveOpen = resolve;
+            })
+          : Promise.resolve();
+      },
+      dispose() {},
+    };
+    const db = openDatabase("model.cdb", {
+      version: "2026",
+      exists: () => true,
+      bridgeFactory: () => bridge,
+    });
+    const read = db.read("nodes");
+    const dispose = db.dispose();
+    resolveOpen(1);
+    await expectAsync(read).toBeRejectedWithError(/closed/);
+    await dispose;
+    expect(operations).toEqual(["open", "close"]);
+  });
+  it("rejects an unknown decoding policy before opening native state", async () => {
+    const { database, factoryCalls } = fixture();
+    await expectAsync(
+      database.read("nodes", undefined, { decodePolicy: "guess" }),
+    ).toBeRejectedWithError(/policy/);
+    expect(factoryCalls()).toBe(0);
+    await database.dispose();
   });
 });
