@@ -72,7 +72,7 @@ Two releases with conflicting placements at the same stored length are refused w
 
 ### Public domain helpers
 
-`packedName(number)` decodes a four-character identifier. `secondaryGroupSelection(numbers)` returns `{ranges, references}` for a calculated selection list. `materialKeyOf(number)` returns the material band, indexed by `MATERIAL_KINDS`. `restraintMask(kfix)` returns the six restrained DOF bits. `groupOf(number, divisor, bases)` resolves group membership; fallback bases are sorted by `min`. `SECTION_FLAGS` and `SHELL_FLAGS` name CDB bit fields. Renderer-specific shapes, labels and IDs belong to consumers.
+`packedName(number)` decodes a four-character identifier. `secondaryGroupSelection(numbers)` returns `{ranges, references}` for a calculated selection list. `materialKeyOf(number)` returns the material band, indexed by `MATERIAL_KINDS`. `restraintMask(kfix)` returns the six restrained DOF bits. `groupOf(number, divisor, bases)` resolves group membership; fallback bases are sorted by `min`. `SECTION_FLAGS` and `SHELL_FLAGS` name CDB bit fields. `fieldFactor(read, name)` and `siFactor(quantityCode)` convert documented CDB storage units to SI. `isKnownUnit(code)` and `storedUnit(code)` expose conversion coverage; unknown declared quantities throw `ERR_CDB_UNIT_UNSUPPORTED` rather than producing a value labelled SI. Fields without a quantity code use factor one. Renderer-specific shapes, labels and IDs belong to consumers.
 
 ## API
 
