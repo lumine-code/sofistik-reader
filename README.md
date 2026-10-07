@@ -76,7 +76,7 @@ Two releases with conflicting placements at the same stored length are refused w
 
 ## API
 
-`openDatabase(path, options)` returns a lazy `CdbDatabase`. `version` is a required four-digit year; `edition` is `professional` or `educational`, defaulting to Professional. `environmentRoot` defaults to `C:\Program Files\SOFiSTiK`. Installation paths and DLL names come from `@lumine-code/sofistik-env`. `resolveInterface(options)` returns `{version, edition, environmentRoot, installRoot, dllPath}`; `listInterfaces(options)` lists installed interfaces newest first.
+`openDatabase(path, options)` returns a lazy `CdbDatabase`. `version` is a required four-digit year; `edition` is `professional` or `educational`, defaulting to Professional. `environmentRoot` defaults to `C:\Program Files\SOFiSTiK`. Installation paths and DLL names come from `@lumine-code/sofistik-context`. `resolveInterface(options)` returns `{version, edition, environmentRoot, installRoot, dllPath}`; `listInterfaces(options)` lists installed interfaces newest first.
 
 `database.read(name, secondary, options)` reads one kind. `secondary` is the load-case, material, section or other key number when not fixed by the catalogue. `database.keys(name, options)` returns its existing secondary keys as an `Int32Array`. Nothing caches query results; consumers own their retention policy.
 
