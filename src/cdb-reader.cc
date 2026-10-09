@@ -22,7 +22,8 @@ constexpr int kLockNoWait = 2;
 constexpr int kDataEnd = 2;
 constexpr int kKeyMissing = 3;
 constexpr int kEnquireNext = 1;
-constexpr int kEnquireMin = -2;
+// CD_ENQ_MIN2 distinguishes a missing primary (0/0) from a valid secondary 0.
+constexpr int kEnquireMin = -3;
 constexpr int kMaxRecordSize = 1 << 20;
 constexpr std::size_t kMaxRecords = 50'000'000;
 
@@ -177,8 +178,7 @@ class CdbReader : public Napi::ObjectWrap<CdbReader> {
     int current_secondary = 0;
     int status = enquire_(index_, &current_primary, &current_secondary, kEnquireMin);
     std::size_t guard = 0;
-    while (status < kDataEnd && current_primary == primary_key && current_secondary != 0 &&
-           guard++ < 1000000) {
+    while (status < kDataEnd && current_primary == primary_key && guard++ < 1000000) {
       result.push_back(current_secondary);
       int next_primary = current_primary;
       int next_secondary = current_secondary;
