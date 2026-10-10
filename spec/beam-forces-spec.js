@@ -112,7 +112,7 @@ describe("beam force forms", () => {
     expect(read.fields.find(({ name }) => name === "ux").unit).toBe(1003);
   });
 
-  for (const length of [36, 44, 68]) {
+  for (const length of [36, 44, 64, 68]) {
     it(`refuses the undocumented ${length}-byte form`, () => {
       const reader = readerOf("beamForces", [{ length, number: 110001, x: 0, n: -5 }]);
       expect(() => reader.read({ name: "beamForces", secondary: 302 })).toThrowError(
@@ -120,6 +120,45 @@ describe("beam force forms", () => {
       );
     });
   }
+
+  it("reads only documented forces from 64-byte key-112 records and exposes the undecoded tail", () => {
+    const reader = readerOf("beamForcesWithoutPlate", [
+      { length: 64, number: 0, x: 2, n: 15, ux: 999 },
+      { length: 64, number: 0, x: 0, n: -25, ux: -999 },
+      { length: 64, number: -110001, x: 1, n: -5, ux: 123 },
+      { length: 64, number: 110001, x: 1, n: -6, ux: 456 },
+      { length: 40, number: 0, x: 2, n: -6 },
+    ]);
+    const read = reader.read({ name: "beamForcesWithoutPlate", secondary: 99882 });
+    expect(Array.from(read.columns.nr)).toEqual([-110001, 110001, 0]);
+    expect(Array.from(read.columns.element)).toEqual([110001, 110001, 110001]);
+    expect(Array.from(read.columns.n)).toEqual([-5, -6, -6]);
+    expect(Array.from(read.recordLengths)).toEqual([64, 64, 40]);
+    expect(read.columns.ux).toBeUndefined();
+    expect(read.columns.phiz).toBeUndefined();
+    expect(read.envelope.max.n).toBe(15);
+    expect(read.envelope.min.n).toBe(-25);
+    expect(read.envelope.max.ux).toBeUndefined();
+    const form = read.provenance.find(({ length }) => length === 64);
+    expect(form.mode).toBe("documented-prefix");
+    expect(form.partial.decodedLength).toBe(40);
+    expect(form.partial.omittedBytes).toBe(24);
+    expect(form.partial.dropped).toEqual([...DEFORMATION_FIELDS, ...BEDDING_FIELDS, ...EAS_FIELDS]);
+    expect(form.partial.assumed).toBeUndefined();
+  });
+
+  it("does not accept arbitrary key-112 lengths or bypass the exact policy", () => {
+    for (const length of [36, 44, 60, 68]) {
+      const reader = readerOf("beamForcesWithoutPlate", [{ length, number: 1, x: 0, n: 2 }]);
+      expect(() => reader.read({ name: "beamForcesWithoutPlate", secondary: 1 })).toThrowError(
+        new RegExp(`${length} bytes`),
+      );
+    }
+    const reader = readerOf("beamForcesWithoutPlate", [{ length: 64, number: 1, x: 0, n: 2 }]);
+    expect(() =>
+      reader.read({ name: "beamForcesWithoutPlate", secondary: 1, decodePolicy: "exact" }),
+    ).toThrowError(/64 bytes/);
+  });
 
   it("keeps force-only records subject to the explicitly selected exact policy", () => {
     const reader = readerOf("beamForces", [{ length: 40, number: 110001, x: 0, n: -5 }]);

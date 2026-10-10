@@ -1,6 +1,28 @@
 const { fieldFactor, isKnownUnit, siFactor, storedUnit } = require("../lib");
 
 describe("units", () => {
+  it("uses storage units rather than display defaults for long distances and crack widths", () => {
+    // DATEN's implicit-unit table has distinct CDBASE and Default columns:
+    // code1000 stores metres but prints kilometres;1026 stores metres but
+    // prints millimetres. Display preferences must not rescale stored values.
+    expect(storedUnit(1000)).toBe("m");
+    expect(siFactor(1000)).toBe(1);
+    expect(storedUnit(1026)).toBe("m");
+    expect(siFactor(1026)).toBe(1);
+  });
+
+  it("converts explicit stiffness units while retaining curvature per metre", () => {
+    expect(storedUnit(17)).toBe("1/m");
+    expect(siFactor(17)).toBe(1);
+    expect(storedUnit(62)).toBe("kN");
+    expect(siFactor(62)).toBe(1000);
+    expect(storedUnit(83)).toBe("kNm2");
+    expect(siFactor(83)).toBe(1000);
+  });
+  it("converts shear flow from quantity 1153 to newtons per metre", () => {
+    expect(storedUnit(1153)).toBe("kN/m");
+    expect(siFactor(1153)).toBe(1000);
+  });
   it("passes through what a CDB already stores in SI", () => {
     // The help's own table: lengths, deformations and rotations are stored in
     // metres and radians whatever they are printed in.

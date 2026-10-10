@@ -131,6 +131,13 @@ describe("mapResult", () => {
     expect(result.fields.at(-1)).toEqual({ name: "element", kind: "i32", count: 1 });
   });
 
+  it("resolves negative left-bank records as their own beam before continuing", () => {
+    const result = decoded({ nr: Int32Array.from([-11, 0, 11, 7, -12, 0, 12]) }, 7);
+    mapResult({ continuation: true }, result);
+    expect(Array.from(result.columns.element)).toEqual([11, 11, 11, 7, 12, 12, 12]);
+    expect(Array.from(result.columns.nr)).toEqual([-11, 0, 11, 7, -12, 0, 12]);
+  });
+
   it("splits a beam result by what its material number means", () => {
     const result = decoded({ mnr: Int32Array.from([1024 + 3, -4, packed("|A1")]) }, 3);
     mapResult({ materialKey: "mnr" }, result);

@@ -33,6 +33,20 @@ function fixture() {
 const installRoot = path.join(path.resolve("installed/sofistik"), "2026", "SOFiSTiK 2026");
 
 describe("CdbDatabase", () => {
+  it("forwards an explicit envelope omission without changing decoding policy", async () => {
+    const { database, requests } = fixture();
+    await database.read("beamHingeReactions", 151, { includeEnvelope: false });
+    expect(requests.at(-1).options.payload).toEqual({
+      name: "beamHingeReactions",
+      secondary: 151,
+      decodePolicy: "variable-tail",
+      includeEnvelope: false,
+    });
+    await expectAsync(
+      database.read("beamHingeReactions", 151, { includeEnvelope: "false" }),
+    ).toBeRejectedWithError(TypeError);
+    await database.dispose();
+  });
   it("opens on the first read and hands the worker the resolved interface", async () => {
     const { database, requests, factoryCalls } = fixture();
     expect(factoryCalls()).toBe(0);
