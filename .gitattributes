@@ -1,2 +1,6 @@
-# Prettier checks against LF, so keep the working tree LF on every platform.
+# Text uses LF on every platform; Windows command scripts require CRLF.
 * text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Prettier checks against LF, so keep the working tree LF on every platform.
