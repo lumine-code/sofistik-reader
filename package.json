@@ -39,7 +39,7 @@
     "smoke:native": "node scripts/smoke-native.js"
   },
   "dependencies": {
-    "@lumine-code/sofistik-context": "github:lumine-code/sofistik-context#7cde4a8fbbc7f7929764a368914b16419dce89fa",
+    "@lumine-code/sofistik-context": "github:lumine-code/sofistik-context#a7af35e405c9ee1a31353ef33cd8779823d3b249",
     "node-addon-api": "^8.9.2",
     "node-gyp-build": "^4.8.4"
   },
